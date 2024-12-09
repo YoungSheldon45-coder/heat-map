@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heat Map</title>
+  
+  <!-- D3.js Library -->
+  <script src="https://d3js.org/d3.v6.min.js"></script>
+
+  <!-- freeCodeCamp Test Script -->
+  <script src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+  
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+    #chart {
+      display: inline-block;
+    }
+    .cell {
+      stroke: #fff;
+    }
+    .cell:hover {
+      stroke: black;
+    }
+    #tooltip {
+      position: absolute;
+      background-color: lightgray;
+      border: 1px solid black;
+      padding: 5px;
+      opacity: 0;
+      pointer-events: none;
+      font-size: 14px;
+    }
+    #legend rect {
+      stroke: #000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Title -->
+  <h1 id="title">Monthly Global Land-Surface Temperature</h1>
+  <p id="description">1753 - 2015: Base Temperature 8.66℃</p>
+
+  <!-- Chart Container -->
+  <div id="chart"></div>
+
+  <!-- Tooltip -->
+  <div id="tooltip" data-year=""></div>
+  
+  <script>
+    const url = "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json";
+
+    const width = 1000;
+    const height = 500;
+    const padding = 60;
+
+    fetch(url)
+      .then(response => response.json())
+      .then(data => createHeatMap(data))
+      .catch(err => console.error(err));
+
+    function createHeatMap(data) {
+      const baseTemp = data.baseTemperature;
+      const monthlyData = data.monthlyVariance;
+
+      // Define month names
+      const months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      // Chart container
+      const svg = d3.select("#chart")
+        .append("svg")
+        .attr("width", width + padding * 2)
+        .attr("height", height + padding * 2);
+
+      // Scales
+      const xScale = d3.scaleBand()
+        .domain(monthlyData.map(d => d.year))
+        .range([padding, width + padding]);
+
+      const yScale = d3.scaleBand()
+        .domain(months)
+        .range([padding, height + padding]);
+
+      const colorScale = d3.scaleQuantize()
+        .domain([d3.min(monthlyData, d => baseTemp + d.variance), d3.max(monthlyData, d => baseTemp + d.variance)])
+        .range(["#4575b4", "#91bfdb", "#fee090", "#fc8d59", "#d73027"]); // Color scale
+
+      // Axes
+      const xAxis = d3.axisBottom(xScale)
+        .tickValues(xScale.domain().filter(year => year % 10 === 0))
+        .tickFormat(d3.format("d"));
+
+      const yAxis = d3.axisLeft(yScale);
+
+      svg.append("g")
+        .attr("id", "x-axis")
+        .attr("transform", `translate(0, ${height + padding})`)
+        .call(xAxis);
+
+      svg.append("g")
+        .attr("id", "y-axis")
+        .attr("transform", `translate(${padding}, 0)`)
+        .call(yAxis);
+
+      // Tooltip
+      const tooltip = d3.select("#tooltip");
+
+      // Heatmap Cells
+      svg.selectAll(".cell")
+        .data(monthlyData)
+        .enter()
+        .append("rect")
+        .attr("class", "cell")
+        .attr("x", d => xScale(d.year))
+        .attr("y", d => yScale(months[d.month - 1]))
+        .attr("width", xScale.bandwidth())
+        .attr("height", yScale.bandwidth())
+        .attr("fill", d => colorScale(baseTemp + d.variance))
+        .attr("data-month", d => d.month - 1)
+        .attr("data-year", d => d.year)
+        .attr("data-temp", d => baseTemp + d.variance)
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 0.9)
+            .attr("data-year", d.year)
+            .html(`
+              Year: ${d.year}<br>
+              Month: ${months[d.month - 1]}<br>
+              Temp: ${(baseTemp + d.variance).toFixed(2)}℃<br>
+              Variance: ${d.variance.toFixed(2)}℃
+            `)
+            .style("left", `${event.pageX + 10}px`)
+            .style("top", `${event.pageY - 30}px`);
+        })
+        .on("mouseout", () => {
+          tooltip.style("opacity", 0);
+        });
+
+      // Legend
+      const legendWidth = 300;
+      const legendHeight = 20;
+
+      const legendScale = d3.scaleLinear()
+        .domain(colorScale.domain())
+        .range([0, legendWidth]);
+
+      const legendAxis = d3.axisBottom(legendScale)
+        .tickSize(10)
+        .tickFormat(d3.format(".1f"))
+        .tickValues(colorScale.range().map(d => colorScale.invertExtent(d)[0]));
+
+      const legend = svg.append("g")
+        .attr("id", "legend")
+        .attr("transform", `translate(${padding}, ${height + padding + 50})`);
+
+      legend.selectAll("rect")
+        .data(colorScale.range())
+        .enter()
+        .append("rect")
+        .attr("x", (d, i) => legendScale(colorScale.invertExtent(d)[0]))
+        .attr("y", 0)
+        .attr("width", legendWidth / colorScale.range().length)
+        .attr("height", legendHeight)
+        .attr("fill", d => d);
+
+      legend.append("g")
+        .attr("transform", `translate(0, ${legendHeight})`)
+        .call(legendAxis);
+    }
+  </script>
+</body>
+</html>
